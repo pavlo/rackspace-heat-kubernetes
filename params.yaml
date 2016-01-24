@@ -1,0 +1,5 @@
+app-name: kube
+ssh-key-name: pavlo
+core-os-image-id: 44aff7ff-29f3-443d-8da8-9353d47b4b17
+kubernetes-version: v1.1.4
+nodes-count: 2

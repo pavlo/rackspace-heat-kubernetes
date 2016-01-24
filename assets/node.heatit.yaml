@@ -1,0 +1,42 @@
+#cloud-config
+write-files:
+  - path: /opt/bin/wupiao
+    permissions: '0755'
+    content: |
+      @insert: file:assets/opt/bin/node-wupiao.sh
+coreos:
+  etcd2:
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    advertise-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    initial-cluster: master=http://$master_addr:2380
+    proxy: on
+  fleet:
+    metadata: "role=node"
+  units:
+    - name: fleet.service
+      command: start
+    - name: flanneld.service
+      command: start
+      drop-ins:
+        - name: 50-network-config.conf
+          content: |
+            [Unit]
+            Requires=etcd2.service
+            [Service]
+            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{"Network":"10.244.0.0/16", "Backend": {"Type": "vxlan"}}'
+    - name: docker.service
+      command: start
+    - name: setup-network-environment.service
+      command: start
+      content: |
+        @insert: file:assets/services/setup-network-environment.service
+    - name: kube-proxy.service
+      command: start
+      content: |
+        @insert: file:assets/services/node/kube-proxy.service
+    - name: kube-kubelet.service
+      command: start
+      content: |
+        @insert: file:assets/services/node/kube-kubelet.service
+  update:
+    @insert: file:assets/misc/update-strategy.yaml

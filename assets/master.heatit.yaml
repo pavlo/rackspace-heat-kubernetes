@@ -1,0 +1,64 @@
+#cloud-config
+---
+write-files:
+  - path: /etc/conf.d/nfs
+    permissions: '0644'
+    content: |
+      OPTS_RPC_MOUNTD=""
+  - path: /opt/bin/wupiao
+    permissions: '0755'
+    content: |
+      @insert: file:assets/opt/bin/master-wupiao.sh
+hostname: master
+coreos:
+  etcd2:
+    name: master
+    listen-client-urls: http://0.0.0.0:2379,http://0.0.0.0:4001
+    advertise-client-urls: http://$private_ipv4:2379,http://$private_ipv4:4001
+    initial-cluster-token: k8s_etcd
+    listen-peer-urls: http://$private_ipv4:2380,http://$private_ipv4:7001
+    initial-advertise-peer-urls: http://$private_ipv4:2380
+    initial-cluster: master=http://$private_ipv4:2380
+    initial-cluster-state: new
+  fleet:
+    metadata: "role=master"
+  units:
+    - name: generate-serviceaccount-key.service
+      command: start
+      content: |
+        @insert: file:assets/services/master/generate-serviceaccount-key.service
+    - name: setup-network-environment.service
+      command: start
+      content: |
+        @insert: file:assets/services/setup-network-environment.service
+    - name: fleet.service
+      command: start
+    - name: flanneld.service
+      command: start
+      drop-ins:
+        - name: 50-network-config.conf
+          content: |
+            [Unit]
+            Requires=etcd2.service
+            [Service]
+            ExecStartPre=/usr/bin/etcdctl set /coreos.com/network/config '{"Network":"10.244.0.0/16", "Backend": {"Type": "vxlan"}}'
+    - name: docker.service
+      command: start
+    - name: kube-apiserver.service
+      command: start
+      content: |
+        @insert: file:assets/services/master/kube-apiserver.service
+    - name: kube-controller-manager.service
+      command: start
+      content: |
+        @insert: file:assets/services/master/kube-controller-manager.service
+    - name: kube-scheduler.service
+      command: start
+      content: |
+        @insert: file:assets/services/master/kube-scheduler.service
+    - name: kubectl.service
+      command: start
+      content: |
+        @insert: file:assets/services/master/kubectl.service
+  update:
+    @insert: file:assets/misc/update-strategy.yaml
